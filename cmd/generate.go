@@ -47,7 +47,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			columns[i] = val
 		}
 		fmt.Printf("Generating key for DAS columns: %v\n", columns)
-		privateKey, err = node.GeneratePrivateKeyWithCustodyColumns(columns, columnCount, subnetCount)
+		privateKey, err = node.GeneratePrivateKeyWithCustodyColumns(columns, columnCount, subnetCount, 8)
 	} else if privKeyPrefix != "" {
 		// Generate key with specific prefix
 		privateKey, err = node.GeneratePrivateKeyWithPrefix(privKeyPrefix)

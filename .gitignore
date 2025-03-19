@@ -1,0 +1,41 @@
+# Binaries and objects
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+nodekey-tools
+
+# Go specific
+*.o
+*.a
+_obj
+_test
+_testmain.go
+
+# Dependencies
+/vendor/
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Debug files
+debug/
+
+# Build output
+/dist/
+/bin/
+
+# Test coverage
+coverage.txt
+coverage.html
+
+# Environment files
+.env
+.env.local
