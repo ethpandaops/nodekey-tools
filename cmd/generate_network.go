@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -17,7 +18,6 @@ import (
 var (
 	nodeCount      uint64
 	columnsPerNode uint64
-	concurrency    uint64
 	outputFile     string
 )
 
@@ -33,7 +33,7 @@ func init() {
 	generateNetworkCmd.Flags().Uint64Var(&columnsPerNode, "columns-per-node", 8, "Number of columns each node should custody")
 	generateNetworkCmd.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
 	generateNetworkCmd.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
-	generateNetworkCmd.Flags().Uint64Var(&concurrency, "concurrency", 8, "Number of goroutines to run concurrently")
+	generateNetworkCmd.Flags().Uint64Var(&concurrency, "concurrency", uint64(runtime.NumCPU()), "Number of goroutines to run concurrently")
 	generateNetworkCmd.Flags().StringVar(&outputFile, "output-file", "", "Path to save the network information as JSON")
 }
 

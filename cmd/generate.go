@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -29,6 +30,7 @@ func init() {
 	generateCmd.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
 	generateCmd.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
 	generateCmd.Flags().StringVar(&privKeyPrefix, "priv-key-prefix", "", "Desired prefix for the private key")
+	generateCmd.Flags().Uint64Var(&concurrency, "concurrency", uint64(runtime.NumCPU()), "Number of concurrent workers for key generation")
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
@@ -47,7 +49,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 			columns[i] = val
 		}
 		fmt.Printf("Generating key for DAS columns: %v\n", columns)
-		privateKey, err = node.GeneratePrivateKeyWithCustodyColumns(columns, columnCount, subnetCount, 8)
+		privateKey, err = node.GeneratePrivateKeyWithCustodyColumns(columns, columnCount, subnetCount, int(concurrency))
 	} else if privKeyPrefix != "" {
 		// Generate key with specific prefix
 		privateKey, err = node.GeneratePrivateKeyWithPrefix(privKeyPrefix)
