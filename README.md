@@ -2,7 +2,7 @@
 
 **Note:** This is still a work in progress. Use at your own risk and only for testing purposes.
 
-A collection of tools for generating and managing Ethereum node keys, with a focus on DAS (Data Availability Sampling) column custody.
+A collection of tools for generating and managing Ethereum node keys (secp256k1), with a focus on DAS (Data Availability Sampling) column custody.
 
 ## Usage
 
@@ -24,8 +24,7 @@ nodekey-tools generate
 nodekey-tools generate --das-columns 1,2,3
 ```
 
-### Show information (pubkey, node id, DAS columns, etc.) about a node
-
+### Show information (pubkey, node id, DAS columns, etc.)
 From private key:
 
 ```bash
@@ -46,6 +45,19 @@ $ nodekey-tools info --node-id e23005d5754cb0c4ca88ba99a8462e31ba8ae7b57f585db73
 | DAS Custody Columns | [55, 61, 65, 82, 90, 108, 111, 124]                              |
 +---------------------+------------------------------------------------------------------+
 
+```
+
+### Convert a secp256k1 private key to libp2p protobuf encoded format
+
+```bash
+$ nodekey-tools secp256k1-to-libp2p --key 000bbc3112bd249176b12e0f40ecaa1ec2c6b89e8b6d9cd244e609693a891b7b
+
+# Output
+{
+  "id": "16Uiu2HAm9hPUmSZbyoRjQvF7T1MGh5XNYPNPcSZsrHtDBpib5PW2",
+  "pubKey": "CAISIQLUCkC2vbakeqSY6TdJqTSmpshGPaR/Q3qzWHzInIzzyw==",
+  "privKey": "CAISIAALvDESvSSRdrEuD0Dsqh7Cxriei22c0kTmCWk6iRt7"
+}
 ```
 
 
