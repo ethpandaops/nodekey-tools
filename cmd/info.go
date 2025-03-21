@@ -15,10 +15,9 @@ import (
 )
 
 var (
-	fromPrivKey  string
-	fromNodeId   string
-	cscCount     uint64
-	outputFormat string
+	fromPrivKey string
+	fromNodeId  string
+	cscCount    uint64
 )
 
 var infoCmd = &cobra.Command{

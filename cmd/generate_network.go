@@ -18,7 +18,6 @@ import (
 var (
 	nodeCount      uint64
 	columnsPerNode uint64
-	outputFile     string
 )
 
 var generateNetworkCmd = &cobra.Command{

@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -34,20 +36,22 @@ type LibP2PKeyExtraOutput struct {
 	PrivKeyHex string `json:"privKeyRawHex"`
 }
 
-var ecdsaToLibp2pCmd = &cobra.Command{
-	Use:   "secp256k1-to-libp2p",
-	Short: "Convert a secp256k1 private key to libp2p protobuf encoded format",
-	RunE:  runEcdsaToLibp2p,
+var convertKeyFormatCmd = &cobra.Command{
+	Use:   "convert-secp256k1",
+	Short: "Convert a secp256k1 private key to different formats",
+	RunE:  runConvertKeyFormat,
 }
 
 func init() {
-	rootCmd.AddCommand(ecdsaToLibp2pCmd)
-	ecdsaToLibp2pCmd.Flags().StringVar(&ecdsaKey, "key", "", "ECDSA private key in hex format")
-	ecdsaToLibp2pCmd.Flags().BoolVar(&showExtra, "extra", false, "Show additional key information")
-	ecdsaToLibp2pCmd.MarkFlagRequired("key")
+	rootCmd.AddCommand(convertKeyFormatCmd)
+	convertKeyFormatCmd.Flags().StringVar(&ecdsaKey, "key", "", "ECDSA private key in hex format")
+	convertKeyFormatCmd.Flags().BoolVar(&showExtra, "extra", false, "Show additional key information")
+	convertKeyFormatCmd.Flags().StringVar(&outputFormat, "output-format", "libp2p", "Output format: 'libp2p' or 'binary'")
+	convertKeyFormatCmd.Flags().StringVar(&outputFile, "output-file", "", "Output file path (defaults to key value if not specified)")
+	convertKeyFormatCmd.MarkFlagRequired("key")
 }
 
-func runEcdsaToLibp2p(cmd *cobra.Command, args []string) error {
+func runConvertKeyFormat(cmd *cobra.Command, args []string) error {
 	// Remove 0x prefix if present
 	ecdsaKey = strings.TrimPrefix(ecdsaKey, "0x")
 
@@ -63,23 +67,35 @@ func runEcdsaToLibp2p(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse ECDSA private key: %v", err)
 	}
 
-	// Convert ECDSA private key to libp2p private key
-	libp2pPrivKey, err := convertEcdsaToLibp2pPrivKey(ecdsaPrivKey)
-	if err != nil {
-		return fmt.Errorf("failed to convert to libp2p private key: %v", err)
+	// Handle different output formats
+	switch outputFormat {
+	case "libp2p":
+		// Convert ECDSA private key to libp2p private key
+		libp2pPrivKey, err := convertEcdsaToLibp2pPrivKey(ecdsaPrivKey)
+		if err != nil {
+			return fmt.Errorf("failed to convert to libp2p private key: %v", err)
+		}
+
+		// Get the libp2p public key
+		libp2pPubKey := libp2pPrivKey.GetPublic()
+
+		// Get the peer ID from the public key
+		peerID, err := libp2ppeer.IDFromPublicKey(libp2pPubKey)
+		if err != nil {
+			return fmt.Errorf("failed to generate peer ID: %v", err)
+		}
+
+		return handleLibp2pOutput(libp2pPrivKey, libp2pPubKey, peerID)
+	case "binary":
+		return handleBinaryOutput(ecdsaPrivKey)
+	default:
+		return fmt.Errorf("unsupported output format: %s", outputFormat)
 	}
+}
 
-	// Get the libp2p public key
-	libp2pPubKey := libp2pPrivKey.GetPublic()
-
-	// Get the peer ID from the public key
-	peerID, err := libp2ppeer.IDFromPublicKey(libp2pPubKey)
-	if err != nil {
-		return fmt.Errorf("failed to generate peer ID: %v", err)
-	}
-
+func handleLibp2pOutput(libp2pPrivKey libp2pcrypto.PrivKey, libp2pPubKey libp2pcrypto.PubKey, peerID libp2ppeer.ID) error {
 	// Marshal the keys to bytes
-	privKeyBytes, err = libp2pPrivKey.Raw()
+	privKeyBytes, err := libp2pPrivKey.Raw()
 	if err != nil {
 		return fmt.Errorf("failed to marshal private key: %v", err)
 	}
@@ -136,8 +152,50 @@ func runEcdsaToLibp2p(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to marshal JSON: %v", err)
 	}
 
-	// Print the result
-	fmt.Println(string(jsonOutput))
+	return writeOutput(jsonOutput)
+}
+
+func handleBinaryOutput(ecdsaPrivKey *ecdsa.PrivateKey) error {
+	// Get the binary representation of the ECDSA private key
+	privKeyBytes := crypto.FromECDSA(ecdsaPrivKey)
+
+	return writeOutput(privKeyBytes)
+}
+
+func writeOutput(data []byte) error {
+	// Determine output file path
+	outputPath := outputFile
+	if outputPath == "" {
+		outputPath = ecdsaKey
+		if outputFormat == "libp2p" {
+			outputPath += ".libp2p.json"
+		} else if outputFormat == "binary" {
+			outputPath += ".bin"
+		}
+	}
+
+	// If output file is specified, write to file
+	if outputPath != "" {
+		// Ensure directory exists
+		dir := filepath.Dir(outputPath)
+		if dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return fmt.Errorf("failed to create directory: %v", err)
+			}
+		}
+
+		if err := os.WriteFile(outputPath, data, 0644); err != nil {
+			return fmt.Errorf("failed to write to file: %v", err)
+		}
+		fmt.Printf("Output written to %s\n", outputPath)
+	} else {
+		// Otherwise print to stdout
+		if outputFormat == "libp2p" {
+			fmt.Println(string(data))
+		} else {
+			fmt.Printf("%x\n", data)
+		}
+	}
 
 	return nil
 }
