@@ -49,12 +49,14 @@ $ nodekey-tools info --node-id e23005d5754cb0c4ca88ba99a8462e31ba8ae7b57f585db73
 
 ### Convert a hex secp256k1 private key to different formats
 
-Depending on your consensus layer client, you might need one format or the other. Below is a table of the expected format for each client:
+Depending on your consensus layer client, you might need one format or the other. On some clients you need to override a specific file. On some other clients you can set the path to the key via a CLI flag.
+
+Below is a table of the expected key file locations, additional required CLI flags an expected key format for each client:
 
 Client | File location | Additional flags | Key format
 --- | --- | --- | ---
 Lighthouse | `$DATADIR/beacon/network/key` |  | binary
-Grandine | `$DATADIR/network/key` | | binary
+Grandine | `$DATADIR/$NETWORK/network/key` | | binary
 Nimbus |  | `--netkey-file=$PATH_TO_KEY --insecure-netkey-password` | keystore
 Lodestar | `$DATADIR/peer-id.json` | | libp2p
 Teku |  | `--Xp2p-private-key-file-secp256k1=$PATH_TO_KEY` | hex
