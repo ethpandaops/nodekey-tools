@@ -1,7 +1,11 @@
 package cmd
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -11,14 +15,17 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/google/uuid"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	libp2ppeer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/scrypt"
 )
 
 var (
-	ecdsaKey  string
-	showExtra bool
+	ecdsaKey         string
+	showExtra        bool
+	keystorePassword string
 )
 
 type LibP2PKeyOutput struct {
@@ -36,6 +43,37 @@ type LibP2PKeyExtraOutput struct {
 	PrivKeyHex string `json:"privKeyRawHex"`
 }
 
+type KeystoreOutput struct {
+	Crypto struct {
+		KDF struct {
+			Function string `json:"function"`
+			Params   struct {
+				DKLen int    `json:"dklen"`
+				N     int    `json:"n"`
+				P     int    `json:"p"`
+				R     int    `json:"r"`
+				Salt  string `json:"salt"`
+			} `json:"params"`
+			Message string `json:"message"`
+		} `json:"kdf"`
+		Checksum struct {
+			Function string            `json:"function"`
+			Params   map[string]string `json:"params"`
+			Message  string            `json:"message"`
+		} `json:"checksum"`
+		Cipher struct {
+			Function string `json:"function"`
+			Params   struct {
+				IV string `json:"iv"`
+			} `json:"params"`
+			Message string `json:"message"`
+		} `json:"cipher"`
+	} `json:"crypto"`
+	Pubkey  string `json:"pubkey"`
+	UUID    string `json:"uuid"`
+	Version int    `json:"version"`
+}
+
 var convertKeyFormatCmd = &cobra.Command{
 	Use:   "convert-secp256k1",
 	Short: "Convert a secp256k1 private key to different formats",
@@ -46,8 +84,9 @@ func init() {
 	rootCmd.AddCommand(convertKeyFormatCmd)
 	convertKeyFormatCmd.Flags().StringVar(&ecdsaKey, "key", "", "ECDSA private key in hex format")
 	convertKeyFormatCmd.Flags().BoolVar(&showExtra, "extra", false, "Show additional key information")
-	convertKeyFormatCmd.Flags().StringVar(&outputFormat, "output-format", "libp2p", "Output format: 'libp2p' or 'binary'")
+	convertKeyFormatCmd.Flags().StringVar(&outputFormat, "output-format", "libp2p", "Output format: 'libp2p', 'binary', or 'keystore'")
 	convertKeyFormatCmd.Flags().StringVar(&outputFile, "output-file", "", "Output file path (defaults to key value if not specified)")
+	convertKeyFormatCmd.Flags().StringVar(&keystorePassword, "keystore-password", "INSECUREPASSWORD", "Password for keystore output")
 	convertKeyFormatCmd.MarkFlagRequired("key")
 }
 
@@ -88,6 +127,19 @@ func runConvertKeyFormat(cmd *cobra.Command, args []string) error {
 		return handleLibp2pOutput(libp2pPrivKey, libp2pPubKey, peerID)
 	case "binary":
 		return handleBinaryOutput(ecdsaPrivKey)
+	case "keystore":
+		if keystorePassword == "INSECUREPASSWORD" {
+			fmt.Println("Info: Using insecure default password for keystore output: INSECUREPASSWORD")
+		}
+		// Convert ECDSA private key to libp2p private key
+		libp2pPrivKey, err := convertEcdsaToLibp2pPrivKey(ecdsaPrivKey)
+		if err != nil {
+			return fmt.Errorf("failed to convert to libp2p private key: %v", err)
+		}
+
+		// Get the libp2p public key
+		libp2pPubKey := libp2pPrivKey.GetPublic()
+		return handleKeystoreOutput(libp2pPrivKey, libp2pPubKey, keystorePassword)
 	default:
 		return fmt.Errorf("unsupported output format: %s", outputFormat)
 	}
@@ -160,6 +212,87 @@ func handleBinaryOutput(ecdsaPrivKey *ecdsa.PrivateKey) error {
 	privKeyBytes := crypto.FromECDSA(ecdsaPrivKey)
 
 	return writeOutput(privKeyBytes)
+}
+
+func handleKeystoreOutput(libp2pPrivKey libp2pcrypto.PrivKey, libp2pPubKey libp2pcrypto.PubKey, password string) error {
+	// Marshal the private key to bytes
+	privKeyBytes, err := libp2pcrypto.MarshalPrivateKey(libp2pPrivKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal private key: %v", err)
+	}
+
+	// Marshal the public key to bytes
+	pubKeyBytes, err := libp2pcrypto.MarshalPublicKey(libp2pPubKey)
+	if err != nil {
+		return fmt.Errorf("failed to marshal public key: %v", err)
+	}
+
+	// Create a new keystore output
+	keystore := KeystoreOutput{}
+	keystore.Version = 1
+	keystore.UUID = uuid.New().String()
+	keystore.Pubkey = hex.EncodeToString(pubKeyBytes)
+
+	// Encryption parameters
+	scryptN := 262144
+	scryptP := 1
+	scryptR := 8
+	dkLen := 32
+
+	// Generate a random salt
+	salt := make([]byte, 32)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %v", err)
+	}
+
+	// Derive the encryption key using scrypt
+	derivedKey, err := scrypt.Key([]byte(password), salt, scryptN, scryptR, scryptP, dkLen)
+	if err != nil {
+		return fmt.Errorf("failed to derive encryption key: %v", err)
+	}
+
+	// Generate a random IV for AES-CTR
+	iv := make([]byte, 16)
+	if _, err := rand.Read(iv); err != nil {
+		return fmt.Errorf("failed to generate IV: %v", err)
+	}
+
+	// Encrypt the private key using AES-CTR
+	block, err := aes.NewCipher(derivedKey[:16])
+	if err != nil {
+		return fmt.Errorf("failed to create cipher: %v", err)
+	}
+	cipherText := make([]byte, len(privKeyBytes))
+	stream := cipher.NewCTR(block, iv)
+	stream.XORKeyStream(cipherText, privKeyBytes)
+
+	// Calculate the checksum
+	mac := sha256.Sum256(append(derivedKey[16:32], cipherText...))
+
+	// Populate the keystore structure
+	keystore.Crypto.KDF.Function = "scrypt"
+	keystore.Crypto.KDF.Params.DKLen = dkLen
+	keystore.Crypto.KDF.Params.N = scryptN
+	keystore.Crypto.KDF.Params.P = scryptP
+	keystore.Crypto.KDF.Params.R = scryptR
+	keystore.Crypto.KDF.Params.Salt = hex.EncodeToString(salt)
+	keystore.Crypto.KDF.Message = ""
+
+	keystore.Crypto.Cipher.Function = "aes-128-ctr"
+	keystore.Crypto.Cipher.Params.IV = hex.EncodeToString(iv)
+	keystore.Crypto.Cipher.Message = hex.EncodeToString(cipherText)
+
+	keystore.Crypto.Checksum.Function = "sha256"
+	keystore.Crypto.Checksum.Params = make(map[string]string)
+	keystore.Crypto.Checksum.Message = hex.EncodeToString(mac[:])
+
+	// Marshal to JSON
+	jsonOutput, err := json.MarshalIndent(keystore, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %v", err)
+	}
+
+	return writeOutput(jsonOutput)
 }
 
 func writeOutput(data []byte) error {
