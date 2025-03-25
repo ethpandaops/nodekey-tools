@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Deploy docker images
-        uses: ethpandaops/github-actions-checker/.github/actions/docker-deploy@0655c7363eb149617d355bf32e4b5f97f3df2cdb
+        uses: ethpandaops/github-actions-checker/.github/actions/docker-deploy@0655c7363eb149617d355bf32e4b5f97f3df2cdb # dependabot/github_actions/actions-b9d97eecc8-0655c73
         with:
           registry: ghcr.io
           registry_username: ${{ github.actor }}
