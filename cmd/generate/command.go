@@ -1,4 +1,4 @@
-package cmd
+package generate
 
 import (
 	"crypto/ecdsa"
@@ -16,21 +16,23 @@ import (
 var (
 	dasColumns    string
 	privKeyPrefix string
+	subnetCount   uint64
+	columnCount   uint64
+	concurrency   uint64
 )
 
-var generateCmd = &cobra.Command{
+var Command = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate a new nodekey",
 	RunE:  runGenerate,
 }
 
 func init() {
-	rootCmd.AddCommand(generateCmd)
-	generateCmd.Flags().StringVar(&dasColumns, "das-columns", "", "Comma separated list of DAS columns that this node should be part of")
-	generateCmd.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
-	generateCmd.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
-	generateCmd.Flags().StringVar(&privKeyPrefix, "priv-key-prefix", "", "Desired prefix for the private key")
-	generateCmd.Flags().Uint64Var(&concurrency, "concurrency", uint64(runtime.NumCPU()), "Number of concurrent workers for key generation")
+	Command.Flags().StringVar(&dasColumns, "das-columns", "", "Comma separated list of DAS columns that this node should be part of")
+	Command.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
+	Command.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
+	Command.Flags().StringVar(&privKeyPrefix, "priv-key-prefix", "", "Desired prefix for the private key")
+	Command.Flags().Uint64Var(&concurrency, "concurrency", uint64(runtime.NumCPU()), "Number of concurrent workers for key generation")
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {

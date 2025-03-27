@@ -88,7 +88,7 @@ $ cat key.libp2p.json
 ```
 
 #### keystore
-This format is prefered by Nimbus. Note, that on Nimbus you can provide the `--insecure-netkey-password` flag, which will use `INSECUREPASSWORD` as the password for the keystore file encryption. Otherwise Nimbus will prompt you for the keystore password when it runs. If you need to generate the keystore with a different password, you can do this via the `--keystore-password` flag.
+This format is preferred by Nimbus. Note, that on Nimbus you can provide the `--insecure-netkey-password` flag, which will use `INSECUREPASSWORD` as the password for the keystore file encryption. Otherwise Nimbus will prompt you for the keystore password when it runs. If you need to generate the keystore with a different password, you can do this via the `--keystore-password` flag.
 
 ```bash
 $ nodekey-tools convert-secp256k1 --output-format keystore --key 000bbc3112bd249176b12e0f40ecaa1ec2c6b89e8b6d9cd244e609693a891b7b --output-file key.keystore.json
@@ -139,7 +139,7 @@ This will generate 18 nodekeys across a 128 column network and save them to the 
 # Try 18 nodes first. This should be quite fast to generate.
 $ nodekey-tools generate-network --node-count 18 --column-count 128 --output-file result-18.json
 
-# If you want the "pefect" size of 16 (128 columns / 8 columns per node), so that each column is
+# If you want the "perfect" size of 16 (128 columns / 8 columns per node), so that each column is
 # served by a single node,  then you can run the following command.
 # Note that this can take hours/days. ( ~ 10 days when mining 4 million keys/sec ).
 $ nodekey-tools generate-network --node-count 16 --column-count 128 --output-file result-16.json

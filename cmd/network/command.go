@@ -1,4 +1,4 @@
-package cmd
+package network
 
 import (
 	"crypto/ecdsa"
@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethpandaops/nodekey-tools/cmd/common"
 	"github.com/ethpandaops/nodekey-tools/node"
 	"github.com/spf13/cobra"
 )
@@ -18,22 +19,25 @@ import (
 var (
 	nodeCount      uint64
 	columnsPerNode uint64
+	subnetCount    uint64
+	columnCount    uint64
+	concurrency    uint64
+	outputFile     string
 )
 
-var generateNetworkCmd = &cobra.Command{
+var Command = &cobra.Command{
 	Use:   "generate-network",
 	Short: "Generate a network of nodes covering all DAS columns",
 	RunE:  runGenerateNetwork,
 }
 
 func init() {
-	rootCmd.AddCommand(generateNetworkCmd)
-	generateNetworkCmd.Flags().Uint64Var(&nodeCount, "node-count", 18, "Number of nodes to generate")
-	generateNetworkCmd.Flags().Uint64Var(&columnsPerNode, "columns-per-node", 8, "Number of columns each node should custody")
-	generateNetworkCmd.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
-	generateNetworkCmd.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
-	generateNetworkCmd.Flags().Uint64Var(&concurrency, "concurrency", uint64(runtime.NumCPU()), "Number of goroutines to run concurrently")
-	generateNetworkCmd.Flags().StringVar(&outputFile, "output-file", "", "Path to save the network information as JSON")
+	Command.Flags().Uint64Var(&nodeCount, "node-count", 18, "Number of nodes to generate")
+	Command.Flags().Uint64Var(&columnsPerNode, "columns-per-node", 8, "Number of columns each node should custody")
+	Command.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
+	Command.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
+	Command.Flags().Uint64Var(&concurrency, "concurrency", uint64(runtime.NumCPU()), "Number of goroutines to run concurrently")
+	Command.Flags().StringVar(&outputFile, "output-file", "", "Path to save the network information as JSON")
 }
 
 type nodeInfo struct {
@@ -227,8 +231,17 @@ func runGenerateNetwork(cmd *cobra.Command, args []string) error {
 		})
 	}
 
+	// Convert nodes to common.NodeInfo for table printing
+	nodeInfos := make([]common.NodeInfo, 0, len(nodes))
+	for _, node := range nodes {
+		nodeInfos = append(nodeInfos, common.NodeInfo{
+			NodeID:  node.nodeID,
+			Columns: node.columns,
+		})
+	}
+
 	// Print column coverage table
-	printColumnCoverageTable(nodes, columnCount)
+	common.PrintColumnCoverageTable(nodeInfos, columnCount)
 
 	// Print uncovered columns if any
 	if len(coveredColumns) < int(columnCount) {
@@ -260,82 +273,4 @@ func runGenerateNetwork(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-// Add this new function to print the column coverage table
-func printColumnCoverageTable(nodes []nodeInfo, columnCount uint64) {
-	// Create a map of column to nodes that cover it
-	columnToNodes := make(map[uint64][]int)
-	for i, node := range nodes {
-		for _, col := range node.columns {
-			columnToNodes[col] = append(columnToNodes[col], i+1) // +1 for 1-based node numbering
-		}
-	}
-
-	fmt.Println("\nColumn Coverage Table:")
-	fmt.Println("=====================")
-
-	// Calculate the section sizes
-	sectionSize := columnCount / 4
-	lastSectionSize := columnCount - (3 * sectionSize) // Handle any remainder
-
-	// Print header
-	fmt.Println("+------+----------+    +------+----------+    +------+----------+    +------+----------+")
-	fmt.Println("| Col  | Nodes    |    | Col  | Nodes    |    | Col  | Nodes    |    | Col  | Nodes    |")
-	fmt.Println("+------+----------+    +------+----------+    +------+----------+    +------+----------+")
-
-	// Print rows with four columns side by side
-	for row := uint64(0); row < sectionSize; row++ {
-		// First section
-		col1 := row
-		nodeList1 := columnToNodes[col1]
-		sort.Ints(nodeList1)
-		nodeStr1 := formatNodeList(nodeList1)
-
-		// Second section
-		col2 := row + sectionSize
-		nodeList2 := columnToNodes[col2]
-		sort.Ints(nodeList2)
-		nodeStr2 := formatNodeList(nodeList2)
-
-		// Third section
-		col3 := row + (2 * sectionSize)
-		nodeList3 := columnToNodes[col3]
-		sort.Ints(nodeList3)
-		nodeStr3 := formatNodeList(nodeList3)
-
-		// Start building the output
-		output := fmt.Sprintf("| %-4d | %-8s |    | %-4d | %-8s |    | %-4d | %-8s |",
-			col1, nodeStr1, col2, nodeStr2, col3, nodeStr3)
-
-		// Fourth section (may have fewer rows)
-		col4 := row + (3 * sectionSize)
-		if row < lastSectionSize {
-			nodeList4 := columnToNodes[col4]
-			sort.Ints(nodeList4)
-			nodeStr4 := formatNodeList(nodeList4)
-			output += fmt.Sprintf("    | %-4d | %-8s |", col4, nodeStr4)
-		}
-
-		fmt.Println(output)
-	}
-
-	// Print footer
-	fmt.Println("+------+----------+    +------+----------+    +------+----------+    +------+----------+")
-}
-
-// Helper function to format the node list as a string
-func formatNodeList(nodeList []int) string {
-	if len(nodeList) == 0 {
-		return "-"
-	}
-
-	nodeStr := ""
-	for i, n := range nodeList {
-		if i > 0 {
-			nodeStr += ","
-		}
-		nodeStr += fmt.Sprintf("%d", n)
-	}
-	return nodeStr
 }
