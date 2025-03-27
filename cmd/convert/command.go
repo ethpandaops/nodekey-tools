@@ -88,6 +88,7 @@ func init() {
 	Command.Flags().StringVar(&outputFormat, "output-format", "libp2p", "Output format: 'libp2p', 'binary', or 'keystore'")
 	Command.Flags().StringVar(&outputFile, "output-file", "", "Output file path (defaults to key value if not specified)")
 	Command.Flags().StringVar(&keystorePassword, "keystore-password", "INSECUREPASSWORD", "Password for keystore output")
+	//nolint:errcheck
 	Command.MarkFlagRequired("key")
 }
 

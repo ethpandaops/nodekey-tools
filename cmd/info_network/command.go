@@ -23,6 +23,7 @@ var Command = &cobra.Command{
 func init() {
 	Command.Flags().StringVar(&inputFile, "input-file", "", "Path to the JSON file containing network information")
 	Command.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
+	//nolint:errcheck
 	Command.MarkFlagRequired("input-file")
 }
 
