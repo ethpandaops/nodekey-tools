@@ -14,3 +14,6 @@ lint:
 
 build:
 	@go build -o bin/nodekey-tools .
+
+test:
+	@go test -v ./...
