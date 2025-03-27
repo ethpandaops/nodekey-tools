@@ -1,4 +1,4 @@
-package cmd
+package convert
 
 import (
 	"crypto/aes"
@@ -26,6 +26,8 @@ var (
 	ecdsaKey         string
 	showExtra        bool
 	keystorePassword string
+	outputFormat     string
+	outputFile       string
 )
 
 type LibP2PKeyOutput struct {
@@ -74,20 +76,19 @@ type KeystoreOutput struct {
 	Version int    `json:"version"`
 }
 
-var convertKeyFormatCmd = &cobra.Command{
+var Command = &cobra.Command{
 	Use:   "convert-secp256k1",
 	Short: "Convert a secp256k1 private key to different formats",
 	RunE:  runConvertKeyFormat,
 }
 
 func init() {
-	rootCmd.AddCommand(convertKeyFormatCmd)
-	convertKeyFormatCmd.Flags().StringVar(&ecdsaKey, "key", "", "ECDSA private key in hex format")
-	convertKeyFormatCmd.Flags().BoolVar(&showExtra, "extra", false, "Show additional key information")
-	convertKeyFormatCmd.Flags().StringVar(&outputFormat, "output-format", "libp2p", "Output format: 'libp2p', 'binary', or 'keystore'")
-	convertKeyFormatCmd.Flags().StringVar(&outputFile, "output-file", "", "Output file path (defaults to key value if not specified)")
-	convertKeyFormatCmd.Flags().StringVar(&keystorePassword, "keystore-password", "INSECUREPASSWORD", "Password for keystore output")
-	convertKeyFormatCmd.MarkFlagRequired("key")
+	Command.Flags().StringVar(&ecdsaKey, "key", "", "ECDSA private key in hex format")
+	Command.Flags().BoolVar(&showExtra, "extra", false, "Show additional key information")
+	Command.Flags().StringVar(&outputFormat, "output-format", "libp2p", "Output format: 'libp2p', 'binary', or 'keystore'")
+	Command.Flags().StringVar(&outputFile, "output-file", "", "Output file path (defaults to key value if not specified)")
+	Command.Flags().StringVar(&keystorePassword, "keystore-password", "INSECUREPASSWORD", "Password for keystore output")
+	Command.MarkFlagRequired("key")
 }
 
 func runConvertKeyFormat(cmd *cobra.Command, args []string) error {
@@ -109,102 +110,74 @@ func runConvertKeyFormat(cmd *cobra.Command, args []string) error {
 	// Handle different output formats
 	switch outputFormat {
 	case "libp2p":
-		// Convert ECDSA private key to libp2p private key
+		// Convert to libp2p format
 		libp2pPrivKey, err := convertEcdsaToLibp2pPrivKey(ecdsaPrivKey)
 		if err != nil {
 			return fmt.Errorf("failed to convert to libp2p private key: %v", err)
 		}
 
-		// Get the libp2p public key
+		// Get the public key
 		libp2pPubKey := libp2pPrivKey.GetPublic()
 
-		// Get the peer ID from the public key
+		// Create output structure
 		peerID, err := libp2ppeer.IDFromPublicKey(libp2pPubKey)
 		if err != nil {
-			return fmt.Errorf("failed to generate peer ID: %v", err)
+			return fmt.Errorf("failed to get peer ID: %v", err)
 		}
 
-		return handleLibp2pOutput(libp2pPrivKey, libp2pPubKey, peerID)
+		output := LibP2PKeyOutput{
+			ID:         peerID.String(),
+			PubKey:     hex.EncodeToString(privKeyBytes),
+			PrivateKey: hex.EncodeToString(privKeyBytes),
+		}
+
+		if showExtra {
+			// Get raw key bytes
+			privKeyBytes, err := libp2pcrypto.MarshalPrivateKey(libp2pPrivKey)
+			if err != nil {
+				return fmt.Errorf("failed to marshal private key: %v", err)
+			}
+
+			pubKeyBytes, err := libp2pcrypto.MarshalPublicKey(libp2pPubKey)
+			if err != nil {
+				return fmt.Errorf("failed to marshal public key: %v", err)
+			}
+
+			output.Extra = &LibP2PKeyExtraOutput{
+				Type:       libp2pPrivKey.Type().String(),
+				PubKeyRaw:  base64.StdEncoding.EncodeToString(pubKeyBytes),
+				PrivKeyRaw: base64.StdEncoding.EncodeToString(privKeyBytes),
+				PubKeyHex:  hex.EncodeToString(pubKeyBytes),
+				PrivKeyHex: hex.EncodeToString(privKeyBytes),
+			}
+		}
+
+		// Marshal to JSON
+		jsonOutput, err := json.MarshalIndent(output, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON: %v", err)
+		}
+
+		return writeOutput(jsonOutput)
+
 	case "binary":
 		return handleBinaryOutput(ecdsaPrivKey)
+
 	case "keystore":
-		if keystorePassword == "INSECUREPASSWORD" {
-			fmt.Println("Info: Using insecure default password for keystore output: INSECUREPASSWORD")
-		}
-		// Convert ECDSA private key to libp2p private key
+		// Convert to libp2p format first
 		libp2pPrivKey, err := convertEcdsaToLibp2pPrivKey(ecdsaPrivKey)
 		if err != nil {
 			return fmt.Errorf("failed to convert to libp2p private key: %v", err)
 		}
 
-		// Get the libp2p public key
+		// Get the public key
 		libp2pPubKey := libp2pPrivKey.GetPublic()
+
 		return handleKeystoreOutput(libp2pPrivKey, libp2pPubKey, keystorePassword)
+
 	default:
-		return fmt.Errorf("unsupported output format: %s", outputFormat)
+		return fmt.Errorf("unknown output format: %s", outputFormat)
 	}
-}
-
-func handleLibp2pOutput(libp2pPrivKey libp2pcrypto.PrivKey, libp2pPubKey libp2pcrypto.PubKey, peerID libp2ppeer.ID) error {
-	// Marshal the keys to bytes
-	privKeyBytes, err := libp2pPrivKey.Raw()
-	if err != nil {
-		return fmt.Errorf("failed to marshal private key: %v", err)
-	}
-
-	pubKeyBytes, err := libp2pPubKey.Raw()
-	if err != nil {
-		return fmt.Errorf("failed to marshal public key: %v", err)
-	}
-
-	// Encode the keys to base64
-	privKeyEncoded := base64.StdEncoding.EncodeToString(privKeyBytes)
-	pubKeyEncoded := base64.StdEncoding.EncodeToString(pubKeyBytes)
-
-	// Encode the keys to hex
-	privKeyHex := hex.EncodeToString(privKeyBytes)
-	pubKeyHex := hex.EncodeToString(pubKeyBytes)
-
-	// Get the protobuf-encoded versions of the keys
-	privKeyProto, err := libp2pcrypto.MarshalPrivateKey(libp2pPrivKey)
-	if err != nil {
-		return fmt.Errorf("failed to marshal private key to protobuf: %v", err)
-	}
-
-	pubKeyProto, err := libp2pcrypto.MarshalPublicKey(libp2pPubKey)
-	if err != nil {
-		return fmt.Errorf("failed to marshal public key to protobuf: %v", err)
-	}
-
-	// Encode the protobuf keys to base64
-	privKeyProtoEncoded := base64.StdEncoding.EncodeToString(privKeyProto)
-	pubKeyProtoEncoded := base64.StdEncoding.EncodeToString(pubKeyProto)
-
-	// Create the output
-	output := LibP2PKeyOutput{
-		ID:         peerID.String(),
-		PubKey:     pubKeyProtoEncoded,
-		PrivateKey: privKeyProtoEncoded,
-	}
-
-	// Only include extra fields if the --extra flag is provided
-	if showExtra {
-		output.Extra = &LibP2PKeyExtraOutput{
-			Type:       libp2pPrivKey.Type().String(),
-			PubKeyRaw:  pubKeyEncoded,
-			PrivKeyRaw: privKeyEncoded,
-			PubKeyHex:  pubKeyHex,
-			PrivKeyHex: privKeyHex,
-		}
-	}
-
-	// Marshal to JSON
-	jsonOutput, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal JSON: %v", err)
-	}
-
-	return writeOutput(jsonOutput)
 }
 
 func handleBinaryOutput(ecdsaPrivKey *ecdsa.PrivateKey) error {
@@ -335,9 +308,14 @@ func writeOutput(data []byte) error {
 
 // convertEcdsaToLibp2pPrivKey converts an ECDSA private key to a libp2p private key
 func convertEcdsaToLibp2pPrivKey(ecdsaPrivKey *ecdsa.PrivateKey) (libp2pcrypto.PrivKey, error) {
-	// Convert ECDSA private key to libp2p format
+	// Get the private key bytes
 	privKeyBytes := crypto.FromECDSA(ecdsaPrivKey)
 
-	// Create a libp2p Secp256k1 private key
-	return libp2pcrypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
+	// Create a libp2p private key
+	libp2pPrivKey, err := libp2pcrypto.UnmarshalSecp256k1PrivateKey(privKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal private key: %v", err)
+	}
+
+	return libp2pPrivKey, nil
 }

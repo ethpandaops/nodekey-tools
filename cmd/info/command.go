@@ -1,4 +1,4 @@
-package cmd
+package info
 
 import (
 	"encoding/hex"
@@ -15,25 +15,27 @@ import (
 )
 
 var (
-	fromPrivKey string
-	fromNodeId  string
-	cscCount    uint64
+	fromPrivKey  string
+	fromNodeId   string
+	cscCount     uint64
+	subnetCount  uint64
+	columnCount  uint64
+	outputFormat string
 )
 
-var infoCmd = &cobra.Command{
+var Command = &cobra.Command{
 	Use:   "info",
 	Short: "Show information about a nodekey",
 	RunE:  runInfo,
 }
 
 func init() {
-	rootCmd.AddCommand(infoCmd)
-	infoCmd.Flags().StringVar(&fromPrivKey, "priv-key", "", "Private key in hex format")
-	infoCmd.Flags().StringVar(&fromNodeId, "node-id", "", "Node ID")
-	infoCmd.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
-	infoCmd.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
-	infoCmd.Flags().Uint64Var(&cscCount, "custody-column-count", 8, "Number of columns that should be custodied")
-	infoCmd.Flags().StringVar(&outputFormat, "output-format", "text", "Output format (text/json)")
+	Command.Flags().StringVar(&fromPrivKey, "priv-key", "", "Private key in hex format")
+	Command.Flags().StringVar(&fromNodeId, "node-id", "", "Node ID")
+	Command.Flags().Uint64Var(&subnetCount, "subnet-count", 128, "Amount of data column sidecar subnets")
+	Command.Flags().Uint64Var(&columnCount, "column-count", 128, "Amount of columns for DAS custody columns")
+	Command.Flags().Uint64Var(&cscCount, "custody-column-count", 8, "Number of columns that should be custodied")
+	Command.Flags().StringVar(&outputFormat, "output-format", "text", "Output format (text/json)")
 }
 
 func runInfo(cmd *cobra.Command, args []string) error {
