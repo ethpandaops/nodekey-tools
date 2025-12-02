@@ -1,6 +1,6 @@
 # nodekey-tools
 
-**Note:** This is still a work in progress. Use at your own risk and only for testing purposes.
+**Note:** Use only for testing purposes! Don't use this for mainnet/production systems.
 
 A collection of tools for generating and managing Ethereum node keys (secp256k1), with a focus on DAS (Data Availability Sampling) column custody.
 
