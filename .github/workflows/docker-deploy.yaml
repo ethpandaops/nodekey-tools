@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Deploy docker images
         uses: ethpandaops/github-actions-checker/.github/actions/docker-deploy@0655c7363eb149617d355bf32e4b5f97f3df2cdb # dependabot/github_actions/actions-b9d97eecc8-0655c73
