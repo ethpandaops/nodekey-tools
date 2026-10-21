@@ -274,9 +274,10 @@ func writeOutput(data []byte) error {
 	outputPath := outputFile
 	if outputPath == "" {
 		outputPath = ecdsaKey
-		if outputFormat == "libp2p" {
+		switch outputFormat {
+		case "libp2p":
 			outputPath += ".libp2p.json"
-		} else if outputFormat == "binary" {
+		case "binary":
 			outputPath += ".bin"
 		}
 	}
