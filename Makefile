@@ -1,6 +1,6 @@
 .PHONY: docker-build lint build
 
-GOLANGCI_LINT_VERSION ?= v1.64
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 docker-build:
 	@docker build -t nodekey-tools .
